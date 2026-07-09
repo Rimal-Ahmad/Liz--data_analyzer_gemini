@@ -1,11 +1,11 @@
-"use client";
+"use client"; // interactivity -> buttons / typing / state
 import { useState } from "react";
 
 type Message = { role: "user" | "model"; text: string };
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]); //useState gives mem -> can render page once the useState changes
+  const [input, setInput] = useState(""); // 1st (messages, input, loading) -> values & 2nd (setters) -> updater functions
   const [loading, setLoading] = useState(false);
 
   const sendMessage = async () => {
@@ -31,6 +31,7 @@ export default function ChatPage() {
     setLoading(false);
   };
 
+  // drawing how the page actually looks like
   return (
     <div style={{ maxWidth: 600, margin: "40px auto", padding: 20 }}>
       <h1>Gemini Chat</h1>
