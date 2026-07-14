@@ -2,16 +2,64 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { last30DaysRange } from "@/lib/dates";
 
 export async function POST(req: NextRequest) {
-  const API_URL = process.env.API_URL;
-  const token = req.headers.get("authorization");
+  try{
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+  //const token = req.headers.get("authorization");
+  const refreshToken = req.headers.get("x-refresh-token");
+
+  //newly added
+  const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      refresh_token: refreshToken,
+    }),
+  });
+  
+  if (!refreshRes.ok) {
+    return NextResponse.json(
+      { error: "Unable to refresh token" },
+      { status: 401 }
+    );
+  }
+  
+  const { access_token, refresh_token: newRefreshToken } = await refreshRes.json();
+
+  const { startDate, endDate } = last30DaysRange();
+
+  const [historyRes, therapiesRes] = await Promise.all([
+    fetch(`${API_URL}/api/data/history`, {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    }),
+  
+    fetch(`${API_URL}/api/therapies/date-range?start_date=${startDate}&end_date=${endDate}`, {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    }),
+  ]);
+
+  //DEBUG LOGS -> REMOVE LATER
+  console.log("History status:", historyRes.status);
+  console.log("Therapy status:", therapiesRes.status);
+
+  console.log(
+    "Therapy error:",
+    await therapiesRes.clone().text()
+  );
 
   // Fetch both datasets server-side
-  const [historyRes, therapiesRes] = await Promise.all([
-    fetch(`${API_URL}/history`, { headers: { Authorization: token ?? "" } }),
-    fetch(`${API_URL}/therapies`, { headers: { Authorization: token ?? "" } }),
-  ]);
+  /*const [historyRes, therapiesRes] = await Promise.all([
+    fetch(`${API_URL}/api/data/history`, { headers: { Authorization: token ?? "" } }),
+    fetch(`${API_URL}/api/therapies/date-range`, { headers: { Authorization: token ?? "" } }),
+  ]);*/
 
   if (!historyRes.ok || !therapiesRes.ok) {
     return NextResponse.json({ error: "Failed to fetch data" }, { status: 502 });
@@ -50,5 +98,16 @@ Do not restate raw numbers as a table — synthesize them into insights. Do not 
   const result = await model.generateContent(prompt);
   const analysis = result.response.text();
 
-  return NextResponse.json({ analysis });
+  return NextResponse.json({ analysis, refresh_token: newRefreshToken });
+
+
+//new
+} catch (err) {
+  console.error("Analyze error:", err);
+
+  return NextResponse.json(
+    { error: "Analysis failed" },
+    { status: 500 }
+  );
+}
 }

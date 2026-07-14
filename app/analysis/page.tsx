@@ -12,8 +12,8 @@ export default function AnalysisPage() {
   const [question, setQuestion] = useState("");
 
   const runAnalysis = async (q?: string) => {
-    const token = getToken();
-    if (!token) {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!refreshToken) {
       setError("Not logged in");
       setLoading(false);
       return;

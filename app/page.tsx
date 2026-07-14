@@ -1,5 +1,6 @@
 "use client"; // interactivity -> buttons / typing / state
 import { useState } from "react";
+import { getToken } from "@/lib/auth";
 
 type Message = { role: "user" | "model"; text: string };
 
@@ -20,14 +21,20 @@ export default function ChatPage() {
       parts: [{ text: m.text }],
     }));
 
-    const res = await fetch("/api/chat", {
+    const token = getToken();
+    const refreshToken = localStorage.getItem("refresh_token");
+
+    const res = await fetch("/api/analyze", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: input, history }),
+      headers: { "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "x-refresh-token": refreshToken ?? "",
+       },
+      body: JSON.stringify({ question: input, }),
     });
     const data = await res.json();
 
-    setMessages([...newMessages, { role: "model", text: data.reply ?? "Error." }]);
+    setMessages([...newMessages, { role: "model", text: data.analysis ?? "Error." }]);
     setLoading(false);
   };
 

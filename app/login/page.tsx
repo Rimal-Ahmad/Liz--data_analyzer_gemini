@@ -16,7 +16,8 @@ export default function LoginPage() {
     try {
       const data = await login();
       setToken(data.access_token);
-      router.push("/history");
+      localStorage.setItem("refresh_token", data.refresh_token);
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
