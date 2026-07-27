@@ -1,87 +1,35 @@
-//fetches history and therapy data directly 
-
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { last30DaysRange } from "@/lib/dates";
 
 export async function POST(req: NextRequest) {
-  try{
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-  //const token = req.headers.get("authorization");
-  const refreshToken = req.headers.get("x-refresh-token");
+  try {
+    const {
+      question,
+      history: chatHistory,
+      patientHistory,
+      therapies,
+    } = await req.json().catch(() => ({
+      question: null,
+      history: [],
+      patientHistory: null,
+      therapies: null,
+    }));
 
-  //newly added
-  const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      refresh_token: refreshToken,
-    }),
-  });
-  
-  if (!refreshRes.ok) {
-    return NextResponse.json(
-      { error: "Unable to refresh token" },
-      { status: 401 }
-    );
-  }
-  
-  const { access_token, refresh_token: newRefreshToken } = await refreshRes.json();
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const { startDate, endDate } = last30DaysRange();
-
-  const [historyRes, therapiesRes] = await Promise.all([
-    fetch(`${API_URL}/api/data/history`, {
-      headers: {
-        Authorization: `Bearer ${access_token}`,
-      },
-    }),
-  
-    fetch(`${API_URL}/api/therapies/date-range?start_date=${startDate}&end_date=${endDate}`, {
-      headers: {
-        Authorization: `Bearer ${access_token}`,
-      },
-    }),
-  ]);
-
-  //DEBUG LOGS -> REMOVE LATER
-  console.log("History status:", historyRes.status);
-  console.log("Therapy status:", therapiesRes.status);
-
-  console.log(
-    "Therapy error:",
-    await therapiesRes.clone().text()
-  );
-
-  // Fetch both datasets server-side
-  /*const [historyRes, therapiesRes] = await Promise.all([
-    fetch(`${API_URL}/api/data/history`, { headers: { Authorization: token ?? "" } }),
-    fetch(`${API_URL}/api/therapies/date-range`, { headers: { Authorization: token ?? "" } }),
-  ]);*/
-
-  if (!historyRes.ok || !therapiesRes.ok) {
-    return NextResponse.json({ error: "Failed to fetch data" }, { status: 502 });
-  }
-
-  const history = await historyRes.json();
-  const therapies = await therapiesRes.json();
-
-  // Optional: let the user ask a specific question
-  const { question } = await req.json().catch(() => ({ question: null }));
-
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const prompt = `
+    const prompt = `
 You are analyzing a patient's health history and dialysis therapy records. You are an analyzing agent.
 
 History data:
-${JSON.stringify(history)}
+${JSON.stringify(patientHistory)}
 
 Therapy sessions data:
 ${JSON.stringify(therapies)}
+
+${chatHistory && chatHistory.length > 0
+  ? `Conversation so far:\n${chatHistory.slice(-4).map((m: { role: string; parts: { text: string }[] }) => `${m.role === "user" ? "User" : "Assistant"}: ${m.parts[0].text}`).join("\n")}\n`
+  : ""} 
 
 ${question
     ? `The user is asking specifically: "${question}"`
@@ -95,19 +43,25 @@ Adapt your tone and technical depth to match the user's question:
 Do not restate raw numbers as a table — synthesize them into insights. Do not diagnose or make definitive medical claims; describe patterns and flag anything that looks worth discussing with a healthcare provider.
 `;
 
-  const result = await model.generateContent(prompt);
-  const analysis = result.response.text();
+//chatHistory.slice(-4) sends only the last 4 messages as context (can increase to 6 - more tokens used)
 
-  return NextResponse.json({ analysis, refresh_token: newRefreshToken });
+    let result;
+    try {
+      result = await model.generateContent(prompt);
+    } catch (err: any) {
+      if (err?.status === 429) {
+        await new Promise((r) => setTimeout(r, 5000));
+        result = await model.generateContent(prompt);
+      } else {
+        throw err;
+      }
+    }
+    const analysis = result.response.text();
 
+    return NextResponse.json({ analysis });
 
-//new
-} catch (err) {
-  console.error("Analyze error:", err);
-
-  return NextResponse.json(
-    { error: "Analysis failed" },
-    { status: 500 }
-  );
-}
+  } catch (err) {
+    console.error("Analyze error:", err);
+    return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
+  }
 }
