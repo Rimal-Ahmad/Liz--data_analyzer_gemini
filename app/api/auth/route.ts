@@ -15,8 +15,6 @@ export async function POST() {
     return NextResponse.json({ error: "Login failed" }, { status: res.status });
   }
 
-  //const data = await res.json();
-
   const text = await res.text();
 
   let data;

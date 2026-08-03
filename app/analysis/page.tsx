@@ -15,7 +15,7 @@ export default function AnalysisPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useEffect(() => { //when page loads
     const loadData = async () => {
       const refreshToken = localStorage.getItem("refresh_token");
       if (!refreshToken) {
@@ -40,9 +40,9 @@ export default function AnalysisPage() {
       }
     };
     loadData();
-  }, []);
+  }, []); //empty array -> data loads only once not when state changes
 
-  const sendMessage = async () => {
+  const sendMessage = async () => { //when send clicked
     if (!input.trim() || dataLoading) return;
     const newMessages: Message[] = [...messages, { role: "user", text: input }];
     setMessages(newMessages);

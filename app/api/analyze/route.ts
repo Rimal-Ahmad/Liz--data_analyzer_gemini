@@ -43,7 +43,7 @@ Adapt your tone and technical depth to match the user's question:
 Do not restate raw numbers as a table — synthesize them into insights. Do not diagnose or make definitive medical claims; describe patterns and flag anything that looks worth discussing with a healthcare provider.
 `;
 
-//chatHistory.slice(-4) sends only the last 4 messages as context (can increase to 6 - more tokens used)
+// ^chatHistory.slice(-4) sends only the last 4 messages as context (can increase to 6 - more tokens used)
 
     let result;
     try {
